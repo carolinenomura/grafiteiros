@@ -1,10 +1,29 @@
-import { StrictMode } from 'react'
-import { createRoot } from 'react-dom/client'
-import './index.css'
-import App from './App.tsx'
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import { createBrowserRouter, RouterProvider } from 'react-router-dom';
+import './index.css'; // Seu CSS com Tailwind
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-)
+// Importe suas páginas (o .tsx é inferido pelo bundler)
+import SelectionPage from './pages/SelectionPage';
+import RecommendationsPage from './pages/RecommendationsPage';
+
+const router = createBrowserRouter([
+  {
+    path: '/',
+    element: <SelectionPage />,
+  },
+  {
+    path: '/recommendations',
+    element: <RecommendationsPage />,
+  },
+]);
+
+// Usamos 'as HTMLElement' ou '!' para dizer ao TypeScript que 'root' não é nulo.
+// '!' (non-null assertion operator) é mais comum neste caso.
+const rootElement = document.getElementById('root')!;
+
+ReactDOM.createRoot(rootElement).render(
+  <React.StrictMode>
+    <RouterProvider router={router} />
+  </React.StrictMode>
+);
