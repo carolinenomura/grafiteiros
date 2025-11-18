@@ -13,7 +13,7 @@ const router = createBrowserRouter([
     element: <SelectionPage />,
   },
   {
-    path: '/recommendations',
+    path: '/recomendacoes',
     element: <RecommendationsPage />,
   },
 ]);

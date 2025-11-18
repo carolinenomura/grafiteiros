@@ -1,11 +1,18 @@
 import { useState } from 'react';
 
-export default function Modal() {
+type ModalProps = {
+  isOpen: boolean;
+  onClose: () => void;
+};
+
+export default function Modal({ isOpen, onClose }: ModalProps) {
+    if (!isOpen) return null;
+
     return (
-        <div className='fixed top-1/2 left-1/2 w-[450px] h-[650px] rounded-3xl -translate-x-1/2 -translate-y-1/2 
-        shadow-xl bg-transparent border-white backdrop-filter-[20px] flex justify-center items-center overflow-hidden text-center'>
+        <div className='fixed top-1/2 left-1/2 w-[450px] h-[650px] rounded-3xl -translate-x-1/2 -translate-y-1/2 z-[99]
+        shadow-xl bg-transparent border-white backdrop-blur-md flex justify-center items-center overflow-hidden text-center'>
             {/*Botão de Fechar o Modal*/}
-            <button className='bg-[#FF0000] text-white text-xl 
+            <button onClick={onClose} className='bg-[#FF0000] text-white text-xl 
                 rounded-tr-3xl rounded-bl-3xl bg-[#232448] w-[40px] h-[40px] 
                 top-0 right-0 absolute before:content-[""] before:absolute before:top-1/2 before:left-1/2
                 before:-translate-x-1/2 before:-translate-y-1/2 before:w-[15px]
