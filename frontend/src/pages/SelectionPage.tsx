@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import Modal from "../components/modal";
 
 // --- Componente Slot Vazio ---
 const AddMovieSlot: React.FC = () => {
