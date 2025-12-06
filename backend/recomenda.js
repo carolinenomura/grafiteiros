@@ -2,28 +2,74 @@
 
 const filmesDB = require('../dados'); // ver com o Luiz o arquivo
 
-const PESOS = {       // calibragem
+/**
+ * calcula a proporção de itens em comum (indice de Jaccard simplificado).
+ * usado para gênero e elenco.
+ * retorna entre 0.0 e 1.0
+ */
+function proporcao(listaA, listaB) {
 
-    DIRETOR_IGUAL: 0,      // distância zero (muito perto)
-    DIRETOR_DIFERENTE: 10, // distância alta
-    GENERO_IGUAL: 0,
-    GENERO_DIFERENTE: 5,
-    ANO_FATOR: 0.1         // multiplicador para diferença de anos
+    if (!listaA || !listaB || listaA.length === 0 || listaB.length === 0) return 0;
 
-};
+    const setA = new Set(listaA);
+    const setB = new Set(listaB);
 
-function calcular_peso(filmeA, filmeB) {
+    // semelhança de itens nas listas
+    let intersecao = 0;
+    for (let item of setA) if (setB.has(item)) intersecao++;
 
-    let peso = 0;
+    // união (total de itens únicos considerando os dois arrays)
+    const t_uniao = (setA.size + setB.size) - intersecao;
 
-    peso += (filmeA.diretor === filmeB.diretor) ? PESOS.MESMO_DIRETOR : PESOS.DIFERENTE_DIRETOR; // diretor
+    return intersecao / t_uniao;
+}
 
-    peso += (filmeA.genero === filmeB.genero) ? PESOS.MESMO_GENERO : PESOS.DIFERENTE_GENERO;     // genero
+/**
+ * normaliza a diferença numérica para uma escala 0-1.
+ * 1 significa "igual" (diferença zero).
+ * 0 significa "muito diferente" (diferença >= maxDiff).
+ */
+function similaridade(valorA, valorB, diferenca_max) {
 
-    peso += Math.abs(filmeA.ano - filmeB.ano) * PESOS.FATOR_ANO; // ano (diferença temporal aumenta a distância)
+    const diferenca = Math.abs(valorA - valorB);
+    if (diferenca >= diferenca_max) return 0;
+    return 1 - (diferenca / diferenca_max);
 
-    return peso;
+}
 
+function peso(filmeA, filmeB) {
+
+    // 1. gênero (Peso 0.4) - proporção em comum
+    const genero = proporcao(filmeA.generos, filmeB.generos);
+
+    // 2. diretor (Peso 0.2) - 1 se igual, senão 0
+    const diretor = (filmeA.diretor === filmeB.diretor) ? 1 : 0;
+
+    // 3. elenco (Peso 0.2) - Proporção em comum
+    const elenco = proporcao(filmeA.elenco, filmeB.elenco);
+
+    // 4. ano (Peso 0.1) - Normalizado (se a diferença for maior que 30 anos, a similaridade é 0)
+    const ano = similaridade(filmeA.ano, filmeB.ano, 30);
+
+    // 5. nota (Peso 0.1) - Normalizado (vai de 0 a 10, então a direfenca_max é 10)
+    const nota = similaridade(filmeA.nota, filmeB.nota, 10);
+
+    // --- FÓRMULA FINAL (Passo 1 da Imagem) ---
+    const similaridadeTotal =
+        (0.4 * genero) +
+        (0.2 * diretor) +
+        (0.2 * elenco) +
+        (0.1 * ano) +
+        (0.1 * nota);
+
+    // --- TRANSFORMAÇÃO EM PESO (Passo 2 da Imagem) ---
+    // Dijkstra precisa de peso MENOR para caminhos MELHORES.
+    // inverter a similaridade:
+    // similaridade 1.0 (Idêntico) -> Peso 0.0
+    // similaridade 0.0 (Nada a ver) -> Peso 1.0
+    const peso = 1 - similaridade_total;
+
+    return parseFloat(peso.toFixed(4)); // arredonda para evitar dízimas
 }
 
 function add_grafo(filmes) { // construção do grafo
@@ -101,8 +147,8 @@ function recomendacoes(entrada_ids) {
 
         for (let [filme_id, dist] of Object.entries(distancias)) { // soma as distâncias (score acumulado)
 
-            if (!scoresFinais[idFilme]) scoresFinais[idFilme] = 0;
-            scoresFinais[idFilme] += dist;
+            if (!scores_finais[filme_id]) scores_finais[filme_id] = 0;
+            scores_finais[filme_id] += dist;
 
         }
 
@@ -119,7 +165,8 @@ function recomendacoes(entrada_ids) {
 
         }))
         .sort((a, b) => a.score_relevancia - b.score_relevancia)
-        .slice(0, 4); // Top 4
+        .slice(0, 4);
+
 }
 
 module.exports = { recomendacoes };
