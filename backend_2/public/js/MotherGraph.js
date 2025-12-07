@@ -8,6 +8,7 @@ class MotherGraph extends Graph {
         super();
         this.genderGraph = new Graph();
         this.ratingGraph = new Graph();
+        this.directorGraph = new Graph();
         this.yearGraph = new Graph();
         this.movies = new Map();
 

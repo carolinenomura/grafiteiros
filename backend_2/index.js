@@ -4,6 +4,8 @@ const app = express();
 const bodyParser = require("body-parser");
 const connection = require("./database/database");
 
+const Movie = require("./movies/Movie");
+
 //definindo o ejs como view engine
 app.set('view engine', 'ejs');
 
@@ -15,6 +17,9 @@ app.use(express.static(path.join(__dirname, 'public')));
 const MoviesController = require("./movies/MoviesController.js");
 
 app.use("/", MoviesController);
+
+const MotherGraph = require('./public/js/MotherGraph.js');
+let motherGraph = null;
 
 app.get("/graphs", async (req, res) => {
     // Carrega ou cria MotherGraph
