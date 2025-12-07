@@ -12,6 +12,10 @@ app.use(bodyParser.json());
 
 app.use(express.static(path.join(__dirname, 'public')));
 
+const MoviesController = require("./movies/MoviesController.js");
+
+app.use("/", MoviesController);
+
 
 
 //conexão com banco de dados
