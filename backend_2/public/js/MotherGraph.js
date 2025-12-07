@@ -234,6 +234,128 @@ class MotherGraph extends Graph {
         this.movies.clear();
     }
 
+    populateMainGraphWithSimilarity() {
+        const similarityGraph = this.generateSimilarityGraph();
+        const allNodes = similarityGraph.getAllNodes();
+
+        // Copia todas as arestas do grafo de similaridade para o grafo principal
+        allNodes.forEach(node => {
+            const neighbors = similarityGraph.getNeighbors(node);
+            neighbors.forEach(([neighbor, weight]) => {
+                // Evita duplicatas
+                if (!this.hasEdge(node, neighbor)) {
+                    this.addEdge(node, neighbor, weight);
+                }
+            });
+        });
+
+        console.log(`Grafo principal populado com ${similarityGraph.getAllNodes().length} nós`);
+    }
+
+    generateSimilarityGraph(min = 0.3) {
+        const g = new Graph();
+        const movies = [...this.movies.values()];
+
+        movies.forEach(m => g.addNode(m.id));
+
+        movies.forEach((a, i) => {
+            movies.slice(i + 1).forEach(b => {
+                let sim = 0;
+                if (a.director === b.director) sim += 0.2;
+                if (Math.abs(a.year - b.year) <= 5) sim += 0.3;
+                if (Math.abs(a.rating - b.rating) <= 1) sim += 0.1;
+
+                if (sim >= min) g.addEdge(a.id, b.id, sim);
+            });
+        });
+        return g;
+    }
+
+    getCombinedRecommendations(movieIds, minSimilarity = 0.2) {
+        // 1. Gerar grafo de similaridade
+        const similarityGraph = this.generateSimilarityGraph(minSimilarity);
+
+        // 2. Filtrar candidatos: conectados a pelo menos 2 filmes do cluster
+        const candidates = new Map(); // id -> {score, connections}
+
+        similarityGraph.getAllNodes().forEach(candidateId => {
+            // Pula se for um dos filmes escolhidos
+            if (movieIds.includes(candidateId)) return;
+
+            // Calcula conexões com o cluster
+            let totalScore = 0;
+            let connectionCount = 0;
+
+            movieIds.forEach(chosenId => {
+                const weight = similarityGraph.getWeight(chosenId, candidateId);
+                if (weight && weight > minSimilarity) {
+                    totalScore += weight;
+                    connectionCount++;
+                }
+            });
+
+            // Só considera se conectado a pelo menos 2 filmes
+            if (connectionCount >= 2) {
+                candidates.set(candidateId, {
+                    score: totalScore,
+                    connections: connectionCount,
+                    avgScore: totalScore / connectionCount
+                });
+            }
+        });
+
+        // 3. Ordenar candidatos por diferentes critérios
+        const candidatesArray = Array.from(candidates.entries())
+            .map(([id, data]) => ({ id, ...data }));
+
+        if (candidatesArray.length === 0) {
+            return []; // Sem recomendações suficientes
+        }
+
+        // 4. Selecionar 4 recomendações diversas
+        const recommendations = [];
+
+        // Critério 1: Maior pontuação total (filme que mais agrada o cluster)
+        const byTotalScore = [...candidatesArray].sort((a, b) => b.score - a.score);
+        if (byTotalScore.length > 0) {
+            recommendations.push(byTotalScore[0].id);
+        }
+
+        // Critério 2: Melhor média (filme mais consistente)
+        const byAvgScore = [...candidatesArray]
+            .filter(c => !recommendations.includes(c.id))
+            .sort((a, b) => b.avgScore - a.avgScore);
+        if (byAvgScore.length > 0) {
+            recommendations.push(byAvgScore[0].id);
+        }
+
+        // Critério 3: Mais conexões (filme que abrange mais gostos)
+        const byConnections = [...candidatesArray]
+            .filter(c => !recommendations.includes(c.id))
+            .sort((a, b) => b.connections - a.connections);
+        if (byConnections.length > 0) {
+            recommendations.push(byConnections[0].id);
+        }
+
+        // Critério 4: "Surpresa" - bem conectado mas não tão óbvio
+        const surpriseCandidates = [...candidatesArray]
+            .filter(c => !recommendations.includes(c.id))
+            .sort((a, b) => {
+                // Prefere filmes com boa média mas não máximo total
+                const balanceA = a.avgScore * 0.7 + (a.score / 10) * 0.3;
+                const balanceB = b.avgScore * 0.7 + (b.score / 10) * 0.3;
+                return balanceB - balanceA;
+            });
+        if (surpriseCandidates.length > 0) {
+            recommendations.push(surpriseCandidates[0].id);
+        }
+
+        // Garantir que temos 4 recomendações únicas
+        return [...new Set(recommendations)].slice(0, 4);
+    }
+
+
+
 }
 
 
