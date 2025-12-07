@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 import FavoriteIcon from '../assets/favorite.svg?react';
 import FavoriteFilledIcon from '../assets/favorite_filled.svg?react';
@@ -114,6 +115,8 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, isLiked, onLikeToggle }) =
 };
 
 const RecommendationsPage: React.FC = () => {
+  const navigate = useNavigate();
+
   // Escolhe um backdrop aleatório ao carregar a página
   const [selectedBackdrop] = useState(() => {
     const randomIndex = Math.floor(Math.random() * backdrops.length);
@@ -154,9 +157,9 @@ const RecommendationsPage: React.FC = () => {
 
         {/* Imagem de fundo e fade */}
         <div className="absolute inset-x-0 top-8 z-0 h-[650px] bg-cover bg-center bg-no-repeat" style={{ backgroundImage: `url("${selectedBackdrop}")` }}>
-          <div className="absolute inset-0 bg-gradient-to-t from-transparent from-70% to-[#1A1A1A]" />
+          <div className="absolute inset-0 bg-gradient-to-t from-transparent from-30% to-[#1A1A1A]" />
           <div className="absolute inset-0 bg-gradient-to-r from-transparent from-70% to-[#1A1A1A]" />
-          <div className="absolute inset-0 bg-gradient-to-b from-transparent from-70% to-[#1A1A1A]" />
+          <div className="absolute inset-0 bg-gradient-to-b from-transparent from-30% to-[#1A1A1A]" />
           <div className="absolute inset-0 bg-gradient-to-l from-transparent from-70% to-[#1A1A1A]" />
         </div>
 
@@ -172,7 +175,7 @@ const RecommendationsPage: React.FC = () => {
 
         {/* Conteúdo Principal */}
         <main className="flex-grow z-10">
-          <div className="container mx-auto max-w-4xl px-4 py-8 sm:py-10 mt-10">
+          <div className="container mx-auto max-w-4xl px-4 py-8 sm:py-10 mt-2">
             <div className="text-center">
               <h1 className="text-2xl sm:text-5xl drop-shadow-sm font-semibold tracking-tight">
                 Suas recomendações
@@ -199,13 +202,23 @@ const RecommendationsPage: React.FC = () => {
               <button className="rounded-lg bg-primary px-8 py-3 text-base font-medium text-white shadow-sm  transition-all hover:bg-primary/90 hover:shadow-primary/10">
                 Novas recomendações
               </button>
+              
+            </div>
+            {/* 2. NOVO BOTÃO (Estilo texto sublinhado) */}
+            <div className="mt-5 flex justify-center">
+              <button 
+                onClick={() => navigate('/')} // 3. AÇÃO DE NAVEGAÇÃO
+                className="text-neutral-400 text-base underline transition-colors hover:text-white"
+              >
+                Mudar meus filmes
+              </button>
             </div>
           </div>
         </main>
 
         {/* Footer */}
         <footer className="z-10 mt-auto w-full">
-          <div className="container mx-auto px-4 py-6 text-center text-sm text-neutral-400">
+          <div className="container mx-auto px-4 py-1 text-center text-sm text-neutral-400">
           <p>© 2025 Grafiteiros. Todos os direitos reservados.</p>
           </div>
         </footer>
