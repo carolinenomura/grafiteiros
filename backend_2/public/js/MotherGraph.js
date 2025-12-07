@@ -49,6 +49,11 @@ class MotherGraph extends Graph {
         });
     }
 
+    getDirKey(movieId) {
+        const dir = this.movies.get(movieId)?.director?.trim();
+        return dir ? `director:${dir}:movie:${movieId}` : '';
+    }
+
     addToGenderGraph(movieId, movie) {
         if (!movie.gender) {
             console.warn(`Filme ${movieId} sem gênero definido`);
@@ -210,6 +215,23 @@ class MotherGraph extends Graph {
         movies.forEach(movie => {
             this.addMovieToAllGraphs(movie);
         });
+    }
+
+    printGraphs() {
+        console.log(this.directorGraph.getAllNodes());
+        console.log(this.yearGraph.getAllNodes());
+        console.log(this.ratingGraph.getAllNodes());
+        console.log(this.genderGraph.getAllNodes());
+        console.log(this.movies);
+    }
+
+    clearAll() {
+        this.adjacencyList.clear();
+        this.directorGraph.adjacencyList.clear();
+        this.genderGraph.adjacencyList.clear();
+        this.ratingGraph.adjacencyList.clear();
+        this.yearGraph.adjacencyList.clear();
+        this.movies.clear();
     }
 
 }
