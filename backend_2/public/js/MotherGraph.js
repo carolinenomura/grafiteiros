@@ -168,6 +168,50 @@ class MotherGraph extends Graph {
         });
     }
 
+    /**
+ * Adiciona um filme a todos os graphs
+ * @param {Object} movie - Objeto filme
+ */
+    addMovieToAllGraphs(movie) {
+        if (!movie || !movie.id) {
+            console.warn('Filme inválido ou sem ID:', movie);
+            return;
+        }
+
+        const movieId = movie.id;
+
+        this.movies.set(movieId, {
+            id: movieId,
+            title: movie.title || '',
+            gender: movie.gender || '',
+            director: movie.director || '',
+            year: movie.year || 0,
+            rating: movie.rating || 0
+        });
+
+        this.addNode(movieId);
+
+        console.log(movie)
+
+        this.addToDirectorGraph(movieId, movie);
+
+        this.addToGenderGraph(movieId, movie);
+
+        this.addToRatingGraph(movieId, movie);
+
+        this.addToYearGraph(movieId, movie);
+    }
+
+    /**
+ * Inicializa todos os graphs com a lista de filmes
+ * @param {Array} movies - Array de objetos de filmes
+ */
+    initializeGraphs(movies) {
+        movies.forEach(movie => {
+            this.addMovieToAllGraphs(movie);
+        });
+    }
+
 }
 
 
