@@ -1,4 +1,5 @@
 const express = require("express");
+require('dotenv').config();
 const path = require("path");
 const app = express();
 const bodyParser = require("body-parser");
@@ -122,6 +123,8 @@ connection.authenticate().then(() => {
     console.log(errorMsg);
 });
 
-app.listen(8080, () => {
+const PORT = process.env.PORT || 8080;
+
+app.listen(PORT, () => {
     console.log("server ta on");
 });
