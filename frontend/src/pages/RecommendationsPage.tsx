@@ -1,17 +1,19 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom'; 
+import { getRecommendationsApi } from '../services/api';
 
 import FavoriteIcon from '../assets/favorite.svg?react';
 import FavoriteFilledIcon from '../assets/favorite_filled.svg?react';
 
 // --- Imagens de fundo ---
 const backdrops = [
-  '/backdrop1.jpg',
-  '/backdrop2.jpg',
-  '/backdrop3.jpg',
-  '/backdrop4.jpg',
-  '/backdrop5.jpg',
-  '/backdrop6.jpg'
+  { url: '/backdrop1.jpg', title: 'Duna: Parte Dois', year: '2024' },
+  { url: '/backdrop2.jpg', title: 'Antes do Amanhecer', year: '1995' },
+  { url: '/backdrop3.jpg', title: 'O Sétimo Selo', year: '1957' },
+  { url: '/backdrop4.jpg', title: 'Guerra nas Estrelas: O Império Contra-Ataca', year: '1980' },
+  { url: '/backdrop5.jpg', title: 'Aquarius', year: '2016' },
+  { url: '/backdrop6.jpg', title: 'Se Meu Apartamento Falasse', year: '1960' },
+  { url: '/backdrop7.jpg', title: 'Interestelar', year: '2014' }
 ];
 
 // --- Interface (Contrato de Dados) ---
@@ -116,6 +118,9 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, isLiked, onLikeToggle }) =
 
 const RecommendationsPage: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation(); // <--- Agora funciona pois importamos
+  const [movies, setMovies] = useState<RecommendedMovie[]>([]); 
+  const [loading, setLoading] = useState(true);
 
   // Escolhe um backdrop aleatório ao carregar a página
   const [selectedBackdrop] = useState(() => {
@@ -128,26 +133,44 @@ const RecommendationsPage: React.FC = () => {
     document.title = "Recomendações - CineMatch";
   }, []);
 
+  useEffect(() => {
+    // Pega os IDs enviados pela página anterior
+    const sourceIds = location.state?.sourceIds;
+
+    if (sourceIds && sourceIds.length > 0) {
+        getRecommendationsApi(sourceIds)
+            .then((data) => {
+                // Converte os dados do backend para o formato visual do card
+                const formatted = data.map((m: any) => ({
+                    id: m.id,
+                    title: m.title,
+                    director: m.director,
+                    year: m.year,
+                    genre: m.gender, 
+                    duration: 120, // Dado fictício
+                    imageUrl: "https://via.placeholder.com/300x450" 
+                }));
+                setMovies(formatted); // <--- Atualiza o estado com DADOS REAIS
+            })
+            .catch(err => console.error("Erro ao buscar recomendações:", err))
+            .finally(() => setLoading(false));
+    } else {
+        setLoading(false); 
+    }
+  }, [location.state]); // <--- Corrigido array de dependência
+
   // Estado para simular quais filmes o usuário curtiu
-  // No futuro será enviado para o backend
   const [likedMovieIds, setLikedMovieIds] = useState<number[]>([]);
 
-  // Lógica para adicionar/remover um ID da lista de curtidas
   const handleLikeToggle = (id: number) => {
     setLikedMovieIds((prevIds) =>
       prevIds.includes(id)
-        ? prevIds.filter((likedId) => likedId !== id) // Remove
-        : [...prevIds, id] // Adiciona
+        ? prevIds.filter((likedId) => likedId !== id)
+        : [...prevIds, id]
     );
   };
 
-  // Futuramente sera usado useEffect para buscar estes dados de uma API
-  // const [movies, setMovies] = useState<RecommendedMovie[]>([]);
-  // useEffect(() => {
-  //   api.getRecommendations().then(data => setMovies(data));
-  // }, []);
-  // Por enquanto, usamos os dados simulados:
-  const movies = mockRecommendedMovies;
+  if (loading) return <div className="text-white text-center mt-20 text-xl">Processando grafo de filmes...</div>;
 
   return (
     <div className="min-h-screen bg-[#1A1A1A] text-white flex flex-col items-center">
@@ -156,11 +179,18 @@ const RecommendationsPage: React.FC = () => {
       <div className="relative w-full max-w-[1300px] flex flex-col items-center">
 
         {/* Imagem de fundo e fade */}
-        <div className="absolute inset-x-0 top-8 z-0 h-[650px] bg-cover bg-center bg-no-repeat" style={{ backgroundImage: `url("${selectedBackdrop}")` }}>
+        <div 
+            className="absolute inset-x-0 top-8 z-0 h-[650px] bg-cover bg-center bg-no-repeat" 
+            style={{ backgroundImage: `url("${selectedBackdrop.url}")` }} // <--- MUDOU AQUI (.url)
+          >
           <div className="absolute inset-0 bg-gradient-to-t from-transparent from-30% to-[#1A1A1A]" />
           <div className="absolute inset-0 bg-gradient-to-r from-transparent from-70% to-[#1A1A1A]" />
           <div className="absolute inset-0 bg-gradient-to-b from-transparent from-30% to-[#1A1A1A]" />
           <div className="absolute inset-0 bg-gradient-to-l from-transparent from-70% to-[#1A1A1A]" />
+        
+          <div className="absolute bottom-4 right-6 text-white/30 text-xs font-light tracking-wider select-none">
+            {selectedBackdrop.title} ({selectedBackdrop.year})
+          </div>
         </div>
 
         {/* Header */}
@@ -187,14 +217,18 @@ const RecommendationsPage: React.FC = () => {
 
             {/* Grid de Filmes (Renderizado dinamicamente) */}
             <div className="mt-8 grid grid-cols-2 gap-4 md:grid-cols-4 md:gap-6">
-              {movies.map((movie) => (
-                <MovieCard
-                  key={movie.id}
-                  movie={movie}
-                  isLiked={likedMovieIds.includes(movie.id)}
-                  onLikeToggle={handleLikeToggle}
-                />
-              ))}
+              {movies.length === 0 ? (
+                 <p className="text-gray-400 col-span-4 text-center">Nenhuma recomendação encontrada baseada nos seus filmes.</p>
+              ) : (
+                movies.map((movie) => (
+                    <MovieCard
+                    key={movie.id}
+                    movie={movie}
+                    isLiked={likedMovieIds.includes(movie.id)}
+                    onLikeToggle={handleLikeToggle}
+                    />
+                ))
+              )}
             </div>
 
             {/* Botão de Ação */}

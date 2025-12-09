@@ -1,6 +1,10 @@
 const express = require("express");
 const router = express.Router();
 const Movie = require("./Movie");
+const Sequelize = require("sequelize");
+const Op = Sequelize.Op;
+
+const MotherGraph = require("../public/js/MotherGraph");
 
 router.get("/movies", (req,res) => {
     Movie.findAll().then((movies) => {
@@ -14,6 +18,29 @@ router.get("/movies", (req,res) => {
 });
 
 () => {}
+
+// Rota de Busca para o Modal 
+router.get("/movies/search", (req, res) => {
+    const query = req.query.q;
+    
+    if (!query) {
+        return res.status(400).json({ error: "Termo de busca vazio" });
+    }
+
+    Movie.findAll({
+        where: {
+            title: {
+                [Op.like]: `%${query}%` // Busca parcial (ex: "Aveng" acha "Avengers")
+            }
+        },
+        limit: 10 // Limita para não travar o modal
+    }).then(movies => {
+        res.json(movies);
+    }).catch(err => {
+        console.log(err);
+        res.sendStatus(500);
+    });
+});
 
 router.get("/movies/:id", (req,res) => {
     if(isNaN(req.params.id)){
@@ -158,6 +185,47 @@ router.post("/movies/batch", async (req, res) => {
         
     } catch (error) {
         res.status(500).json({ error: error.message });
+    }
+});
+
+// Rota de Recomendações 
+router.post("/recommendations", async (req, res) => {
+    try {
+        const { movieIds } = req.body; // O frontend vai mandar [1, 5, 10, 22]
+
+        if (!movieIds || !Array.isArray(movieIds) || movieIds.length === 0) {
+            return res.status(400).json({ error: "Selecione filmes para gerar recomendações" });
+        }
+
+        // A. Precisamos de TODOS os filmes para montar o Grafo e criar as conexões
+        const allMovies = await Movie.findAll();
+        
+        // Converter os dados do Sequelize para objetos simples JS
+        const plainMovies = allMovies.map(m => m.toJSON());
+
+        // B. Inicializar o MotherGraph com todos os filmes
+        const graph = new MotherGraph(plainMovies);
+
+        // C. Gerar as recomendações baseado nos IDs que o usuário escolheu
+        // O método retorna apenas os IDs (ex: [45, 12, 99, 2])
+        const recommendedIds = graph.getCombinedRecommendations(movieIds);
+
+        if (recommendedIds.length === 0) {
+            return res.json([]); 
+        }
+
+        // D. Buscar os detalhes completos desses filmes recomendados no banco
+        const recommendedMovies = await Movie.findAll({
+            where: {
+                id: { [Op.in]: recommendedIds }
+            }
+        });
+
+        res.json(recommendedMovies);
+
+    } catch (error) {
+        console.error("Erro ao gerar recomendações:", error);
+        res.status(500).json({ error: "Erro interno no servidor de recomendações" });
     }
 });
 
