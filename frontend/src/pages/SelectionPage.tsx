@@ -1,15 +1,17 @@
 import React, { useEffect, useState } from "react";
 import Modal from "../components/modal";
 import { useNavigate } from 'react-router-dom';
+import type { MovieData } from "../services/api";
 
 // --- Imagens de fundo ---
 const backdrops = [
-  '/backdrop1.jpg',
-  '/backdrop2.jpg',
-  '/backdrop3.jpg',
-  '/backdrop4.jpg',
-  '/backdrop5.jpg',
-  '/backdrop6.jpg'
+  { url: '/backdrop1.jpg', title: 'Duna: Parte Dois', year: '2024' },
+  { url: '/backdrop2.jpg', title: 'Antes do Amanhecer', year: '1995' },
+  { url: '/backdrop3.jpg', title: 'O Sétimo Selo', year: '1957' },
+  { url: '/backdrop4.jpg', title: 'Guerra nas Estrelas: O Império Contra-Ataca', year: '1980' },
+  { url: '/backdrop5.jpg', title: 'Aquarius', year: '2016' },
+  { url: '/backdrop6.jpg', title: 'Se Meu Apartamento Falasse', year: '1960' },
+  { url: '/backdrop7.jpg', title: 'Interestelar', year: '2014' }
 ];
 
 type AddMovieSlotProps = {
@@ -71,6 +73,7 @@ interface SelectedMovie {
 // --- Componente da Página Principal ---
 const SelectionPage: React.FC = () => {
   const navigate = useNavigate();
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   // Escolhe um backdrop aleatório ao carregar a página
   const [selectedBackdrop] = useState(() => {
@@ -83,6 +86,7 @@ const SelectionPage: React.FC = () => {
     document.title = "Início - CineMatch";
   }, []);
 
+  /*
   const [selectedMovies, setSelectedMovies] = useState<SelectedMovie[]>([
     {
       id: 1,
@@ -99,6 +103,10 @@ const SelectionPage: React.FC = () => {
         "https://image.tmdb.org/t/p/original/1n5VUlCqgmVax1adxGZm8oCFaKc.jpg",
     },
   ]);
+  */
+
+  // ESTADO INICIAL VAZIO (Removemos Parasite e Amadeus hardcoded)
+  const [selectedMovies, setSelectedMovies] = useState<SelectedMovie[]>([]);
 
   const slotsToFill = 4;
   const emptySlotsCount = slotsToFill - selectedMovies.length;
@@ -107,31 +115,68 @@ const SelectionPage: React.FC = () => {
     setSelectedMovies((prevMovies) => prevMovies.filter((movie) => movie.id !== movieId));
   };
 
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  // --- NOVA FUNÇÃO: Recebe o filme vindo do Modal e adiciona na lista ---
+  const handleSelectMovieFromModal = (movie: MovieData) => {
+    // 1. Evita duplicatas
+    if (selectedMovies.some((m) => m.id === movie.id)) {
+      alert("Você já selecionou este filme!");
+      return;
+    }
+
+    const tmdbBaseUrl = "https://image.tmdb.org/t/p/w500";
+
+    // 2. Formata o objeto para o visual do card
+    const newMovie: SelectedMovie = {
+      id: movie.id,
+      title: movie.title,
+      year: movie.year.toString(),
+      // Como o backend ainda não retorna URL de imagem, usamos um placeholder
+      imageUrl: movie.poster_path 
+        ? `${tmdbBaseUrl}${movie.poster_path}` 
+        : "https://via.placeholder.com/300x450?text=Sem+Imagem"  
+    };
+
+    setSelectedMovies((prev) => [...prev, newMovie]);
+  };
+
+  // --- NOVA FUNÇÃO: Navega enviando os IDs ---
+  const handleGetRecommendations = () => {
+    const ids = selectedMovies.map(m => m.id);
+    
+    // Passamos os IDs através do "state" do React Router
+    navigate('/recomendacoes', { state: { sourceIds: ids } });
+  };
 
   return (
     <div className="min-h-screen bg-[#1A1A1A] text-white flex flex-col items-center">
       <div className="relative w-full max-w-[1300px] flex flex-col items-center">
         {/* Imagem de fundo */}
-        <div className="absolute inset-x-0 top-8 z-0 h-[650px] bg-cover bg-center bg-no-repeat" style={{ backgroundImage: `url("${selectedBackdrop}")` }}>
+        <div 
+            className="absolute inset-x-0 top-8 z-0 h-[650px] bg-cover bg-center bg-no-repeat" 
+            style={{ backgroundImage: `url("${selectedBackdrop.url}")` }} // <--- MUDOU AQUI (.url)
+          >
           <div className="absolute inset-0 bg-gradient-to-t from-transparent from-50% to-[#1A1A1A]" />
           <div className="absolute inset-0 bg-gradient-to-r from-transparent from-70% to-[#1A1A1A]" />
           <div className="absolute inset-0 bg-gradient-to-b from-transparent from-50% to-[#1A1A1A]" />
           <div className="absolute inset-0 bg-gradient-to-l from-transparent from-70% to-[#1A1A1A]" />
+        
+          <div className="absolute bottom-4 right-6 text-white/30 text-xs font-light tracking-wider select-none">
+            {selectedBackdrop.title} ({selectedBackdrop.year})
+          </div>
         </div>
 
         {/* Header */}
         <header className="relative z-10 w-[960px] flex items-center justify-center border-none border-b border-[#3F3F3F] px-6 py-4">
           <div className="flex items-center gap-3">
             <div className="size-6 text-primary">
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" className="lucide lucide-clapperboard-icon lucide-clapperboard"><path d="M20.2 6 3 11l-.9-2.4c-.3-1.1.3-2.2 1.3-2.5l13.5-4c1.1-.3 2.2.3 2.5 1.3Z" /><path d="m6.2 5.3 3.1 3.9" /><path d="m12.4 3.4 3.1 4" /><path d="M3 11h18v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" /></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-clapperboard-icon lucide-clapperboard"><path d="M20.2 6 3 11l-.9-2.4c-.3-1.1.3-2.2 1.3-2.5l13.5-4c1.1-.3 2.2.3 2.5 1.3Z" /><path d="m6.2 5.3 3.1 3.9" /><path d="m12.4 3.4 3.1 4" /><path d="M3 11h18v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" /></svg>
             </div>
             <h2 className="text-lg font-bold tracking-[-0.015em]">CineMatch</h2>
           </div>
         </header>
 
         {/* Conteúdo */}
-        <main className="flex-1 z-10  py-10 mt-10 w-full max-w-[900px] text-center">
+        <main className="flex-1 z-10  py-10  w-full max-w-[900px] text-center">
           <h1 className="text-2xl sm:text-5xl drop-shadow-sm font-semibold tracking-tight">
             Encontre seu próximo filme favorito
           </h1>
@@ -156,24 +201,28 @@ const SelectionPage: React.FC = () => {
           <p className="text-neutral-400 text-sm mt-6">
             {selectedMovies.length} de {slotsToFill} filmes selecionados
           </p>
+          
           <button
             className="mt-6 rounded-lg bg-primary px-8 py-3 text-base font-medium text-white shadow-sm transition-all hover:bg-primary/90 hover:shadow-primary/10 disabled:bg-[#232448] disabled:text-[#5b5f7d] transition-colors"
             disabled={selectedMovies.length < slotsToFill}
-            onClick={() => navigate('/recomendacoes')} 
+            onClick={handleGetRecommendations} // <-- Atualizado para chamar a nova função
           >
             Obter Recomendações
           </button>
         </main>
 
         {/* Footer */}
-        <footer className="mt-auto w-full">
+        <footer className="mt-10 w-full">
           <div className="container mx-auto px-4 py-6 text-center text-sm text-neutral-400">
             <p>© 2025 Grafiteiros. Todos os direitos reservados.</p>
           </div>
         </footer>
+        
+        {/* MODAL Conectado */}
         <Modal
           isOpen={isModalOpen}
           onClose={() => setIsModalOpen(false)}
+          onSelectMovie={handleSelectMovieFromModal} // <-- Passamos a função aqui
         />
       </div>
     </div>

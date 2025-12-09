@@ -4,7 +4,7 @@ const path = require("path");
 const app = express();
 const bodyParser = require("body-parser");
 const connection = require("./database/database");
-
+const cors = require("cors");
 const Movie = require("./movies/Movie");
 
 //definindo o ejs como view engine
@@ -14,6 +14,8 @@ app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
 
 app.use(express.static(path.join(__dirname, 'public')));
+
+app.use(cors());
 
 const MoviesController = require("./movies/MoviesController.js");
 

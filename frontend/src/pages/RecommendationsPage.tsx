@@ -1,17 +1,17 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-
-import FavoriteIcon from '../assets/favorite.svg?react';
-import FavoriteFilledIcon from '../assets/favorite_filled.svg?react';
+import { useNavigate, useLocation } from 'react-router-dom'; 
+import { getRecommendationsApi, explainRecommendationApi } from '../services/api';
+import ReactMarkdown from 'react-markdown';
 
 // --- Imagens de fundo ---
 const backdrops = [
-  '/backdrop1.jpg',
-  '/backdrop2.jpg',
-  '/backdrop3.jpg',
-  '/backdrop4.jpg',
-  '/backdrop5.jpg',
-  '/backdrop6.jpg'
+  { url: '/backdrop1.jpg', title: 'Duna: Parte Dois', year: '2024' },
+  { url: '/backdrop2.jpg', title: 'Antes do Amanhecer', year: '1995' },
+  { url: '/backdrop3.jpg', title: 'O Sétimo Selo', year: '1957' },
+  { url: '/backdrop4.jpg', title: 'Guerra nas Estrelas: O Império Contra-Ataca', year: '1980' },
+  { url: '/backdrop5.jpg', title: 'Aquarius', year: '2016' },
+  { url: '/backdrop6.jpg', title: 'Se Meu Apartamento Falasse', year: '1960' },
+  { url: '/backdrop7.jpg', title: 'Interestelar', year: '2014' }
 ];
 
 // --- Interface (Contrato de Dados) ---
@@ -25,90 +25,119 @@ interface RecommendedMovie {
   imageUrl: string;
 }
 
-// --- Dados Simulados (Mock Data) ---
-// Substitua este array pelos dados que virão da sua API.
-const mockRecommendedMovies: RecommendedMovie[] = [
-  {
-    id: 1,
-    title: "Frankenstein",
-    director: "Guillermo del Toro",
-    year: 2025,
-    genre: "Terror/Sci-Fi",
-    duration: 150,
-    imageUrl: "https://a.ltrbxd.com/resized/film-poster/9/5/8/1/0/0/958100-frankenstein-2025-0-230-0-345-crop.jpg?v=49a1ca2305",
-  },
-  {
-    id: 2,
-    title: "Portrait of a Lady on Fire",
-    director: "Céline Sciamma",
-    year: 2019,
-    genre: "Romance/Drama",
-    duration: 121,
-    imageUrl: "https://image.tmdb.org/t/p/w500/2LquGwEhbg3soxSCs9VNyh5VJd9.jpg",
-  },
-  {
-    id: 3,
-    title: "Before Sunrise",
-    director: "Richard Linklater",
-    year: 1995,
-    genre: "Romance/Drama",
-    duration: 101,
-    imageUrl: "https://image.tmdb.org/t/p/original/xfsesL93davwAyHHWykRTW92Bqo.jpg",
-  },
-  {
-    id: 4,
-    title: "Apocalypse Now",
-    director: "Francis Ford Coppola",
-    year: 1979,
-    genre: "Guerra/Ação",
-    duration: 147,
-    imageUrl: "https://image.tmdb.org/t/p/original/veXttPnNe8EZulvmeGTyDUrG9T4.jpg",
-  }
-];
+// --- Componente do Modal de Explicação ---
+interface ExplanationModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  title: string;
+  content: string;
+  movieImage: string;
+}
 
 // --- Componente do Card (Reutilizável) ---
 interface MovieCardProps {
   movie: RecommendedMovie;
-  isLiked: boolean;
-  onLikeToggle: (id: number) => void;
+  onExplain: (movie: RecommendedMovie) => void; 
+  explanationText: string | null;                // O texto da IA (se houver)
+  isLoading: boolean;                            
 }
 
-const MovieCard: React.FC<MovieCardProps> = ({ movie, isLiked, onLikeToggle }) => {
+const ExplanationModal: React.FC<ExplanationModalProps> = ({ isOpen, onClose, title, content, movieImage }) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-fade-in">
+      <div className="relative w-full max-w-2xl bg-[#1A1A1A] border border-[#515151] rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-scale-up">
+        
+        {/* Header do Modal */}
+        <div className="flex items-center justify-between p-6 border-b border-white/10 bg-[#232448]">
+          <h3 className="text-xl font-bold text-white flex items-center gap-2">
+            <span className="material-symbols-outlined text-[#8A92D3]">psychology</span>
+            Análise do Algoritmo
+          </h3>
+          <button 
+            onClick={onClose}
+            className="text-white/50 hover:text-white transition-colors rounded-full p-1 hover:bg-white/10"
+          >
+            <span className="material-symbols-outlined text-2xl">close</span>
+          </button>
+        </div>
+
+        {/* Conteúdo */}
+        <div className="flex flex-col md:flex-row p-6 gap-6">
+            {/* Poster Pequeno (Opcional, mas fica bonito) */}
+            <div 
+              className="hidden md:block w-32 h-48 rounded-lg bg-cover bg-center shrink-0 shadow-lg border border-white/10"
+              style={{ backgroundImage: `url("${movieImage}")` }}
+            />
+            
+            <div className="flex-1">
+                <h4 className="text-lg font-semibold text-[#8A92D3] mb-2">{title}</h4>
+                <div className="prose prose-invert prose-sm max-w-none">
+                    <ReactMarkdown components={{
+                        // Customização opcional para garantir que o negrito fique na cor certa
+                        strong: ({node, ...props}) => <span className="font-bold text-[#8A92D3]" {...props} />
+                    }}>
+                        {content}
+                    </ReactMarkdown>
+                </div>
+                
+                {/* Nota de rodapé técnica */}
+                <div className="mt-6 pt-4 border-t border-white/5 flex gap-2 items-center text-xs text-white/30">
+                   <span className="material-symbols-outlined text-sm">info</span>
+                   Explicado por IA baseada nos pesos do Grafo de Similaridade.
+                </div>
+            </div>
+        </div>
+        
+        {/* Footer com Botão Fechar */}
+        <div className="p-4 bg-[#141414] flex justify-end">
+            <button 
+                onClick={onClose}
+                className="px-6 py-2 bg-[#8A92D3] hover:bg-[#7a82c3] text-white font-bold rounded-lg transition-colors"
+            >
+                Entendi
+            </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const MovieCard: React.FC<MovieCardProps> = ({ 
+  movie, 
+  onExplain, 
+  isLoading 
+}) => {
   return (
     <div className="group flex transform flex-col rounded-lg bg-[#2e2e2e] border border-[#515151]/40 transition-all duration-300 hover:scale-105 hover:bg-[#4f4f4f]/90 p-3">
       <div
         className="relative w-full overflow-hidden rounded-lg bg-center bg-no-repeat aspect-[2/3] bg-cover"
-        data-alt={`Movie poster for ${movie.title}`}
         style={{ backgroundImage: `url("${movie.imageUrl}")` }}
       >
-        <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent"></div>
+         <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent"></div>
       </div>
+
       <div className="flex flex-1 flex-col mt-3">
         <div className="flex-grow">
           <p className="font-semibold text-white truncate">{movie.title}</p>
-          <p className="text-sm text-gray-300">{movie.year}  {movie.genre}</p>
+          <p className="text-sm text-gray-300">{movie.year} • {movie.genre}</p>
           <p className="text-sm text-gray-300">{movie.duration} min</p>
         </div>
         
-        {/* Botão com estado (Like/Liked) */}
-        <button
-          onClick={() => onLikeToggle(movie.id)}
-          className={`group/button mt-4 flex size-10 items-center justify-center ml-auto rounded-[50px] transition-colors ${
-            isLiked
-              ? 'bg-[#8A92D3]/30' // Estado "Liked"
-              : 'bg-white/20 hover:bg-white/40' // Estado Padrão
-          }`}
-        >
-          {isLiked ? (
-            <FavoriteFilledIcon 
-              className="h-5 w-5 text-primary/60" 
-            />
-          ) : (
-            <FavoriteIcon 
-              className="h-5 w-5 text-neutral-400 group-hover/button:text-neutral-400" 
-            />
-          )}
-        </button>
+        {/* --- BOTÃO IA (Limpo, sem bordas em cima) --- */}
+        <div className="mt-4">
+            <button 
+                onClick={() => onExplain(movie)}
+                disabled={isLoading}
+                className="flex items-center gap-2 text-xs font-bold text-[#8A92D3] hover:text-white transition-colors w-full bg-[#8A92D3]/10 hover:bg-[#8A92D3]/20 py-2 px-3 rounded-md justify-center"
+            >
+                <span className="material-symbols-outlined text-sm">
+                   {isLoading ? 'hourglass_empty' : 'auto_awesome'}
+                </span>
+                {isLoading ? "Analisando..." : "Por que este filme?"}
+            </button>
+        </div>
       </div>
     </div>
   );
@@ -116,6 +145,15 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, isLiked, onLikeToggle }) =
 
 const RecommendationsPage: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation(); // <--- Agora funciona pois importamos
+  const [movies, setMovies] = useState<RecommendedMovie[]>([]); 
+  const [loading, setLoading] = useState(true);
+
+  // Estado para guardar qual card está mostrando a explicação
+ 
+  const [explanationData, setExplanationData] = useState<{ movie: RecommendedMovie; text: string } | null>(null);
+  
+  const [loadingId, setLoadingId] = useState<number | null>(null); // Para saber qual card está girando
 
   // Escolhe um backdrop aleatório ao carregar a página
   const [selectedBackdrop] = useState(() => {
@@ -123,31 +161,69 @@ const RecommendationsPage: React.FC = () => {
     return backdrops[randomIndex];
   });
 
+  const handleAskAI = async (movie: RecommendedMovie) => {
+    // Se clicou no mesmo que já está aberto, fecha
+    if (explanationData?.movie.id === movie.id) {
+        setExplanationData(null);
+        return;
+    }
+
+    // Inicia carregamento deste ID específico
+    setLoadingId(movie.id); 
+
+    try {
+        // Nota: Se sourceIds no location for apenas números, o backend precisa saber lidar
+        // ou você precisa passar os títulos. Assumindo que seu backend trata IDs:
+        const sourceIds = location.state?.sourceIds || [];
+        // Formata para enviar como objetos com ID
+        const userMoviesPayload = sourceIds.map((id: number) => ({ id }));
+
+        const explanation = await explainRecommendationApi(userMoviesPayload, movie);
+        setExplanationData({ movie: movie, text: explanation });
+    } catch (error) {
+        console.error(error);
+        alert("Erro ao conectar com a IA.");
+    } finally {
+        setLoadingId(null); // Para o carregamento
+    }
+  };
+
   // Nome da página
   useEffect(() => {
     document.title = "Recomendações - CineMatch";
   }, []);
 
-  // Estado para simular quais filmes o usuário curtiu
-  // No futuro será enviado para o backend
-  const [likedMovieIds, setLikedMovieIds] = useState<number[]>([]);
+  useEffect(() => {
+    // Pega os IDs enviados pela página anterior
+    const sourceIds = location.state?.sourceIds;
 
-  // Lógica para adicionar/remover um ID da lista de curtidas
-  const handleLikeToggle = (id: number) => {
-    setLikedMovieIds((prevIds) =>
-      prevIds.includes(id)
-        ? prevIds.filter((likedId) => likedId !== id) // Remove
-        : [...prevIds, id] // Adiciona
-    );
-  };
+    if (sourceIds && sourceIds.length > 0) {
+        getRecommendationsApi(sourceIds)
+            .then((data) => {
+                const tmdbBaseUrl = "https://image.tmdb.org/t/p/w500"; 
 
-  // Futuramente sera usado useEffect para buscar estes dados de uma API
-  // const [movies, setMovies] = useState<RecommendedMovie[]>([]);
-  // useEffect(() => {
-  //   api.getRecommendations().then(data => setMovies(data));
-  // }, []);
-  // Por enquanto, usamos os dados simulados:
-  const movies = mockRecommendedMovies;
+                // Converte os dados do backend para o formato visual do card
+                const formatted = data.map((m: any) => ({
+                    id: m.id,
+                    title: m.title,
+                    director: m.director,
+                    year: m.year,
+                    genre: m.gender, 
+                    duration: 120, // Dado fictício
+                    imageUrl: m.poster_path 
+                        ? `${tmdbBaseUrl}${m.poster_path}` 
+                        : "https://via.placeholder.com/300x450?text=Sem+Imagem"
+                }));
+                setMovies(formatted); 
+            })
+            .catch(err => console.error("Erro ao buscar recomendações:", err))
+            .finally(() => setLoading(false));
+    } else {
+        setLoading(false); 
+    }
+  }, [location.state]);
+
+  if (loading) return <div className="text-white text-center mt-20 text-xl">Processando grafo de filmes...</div>;
 
   return (
     <div className="min-h-screen bg-[#1A1A1A] text-white flex flex-col items-center">
@@ -156,11 +232,18 @@ const RecommendationsPage: React.FC = () => {
       <div className="relative w-full max-w-[1300px] flex flex-col items-center">
 
         {/* Imagem de fundo e fade */}
-        <div className="absolute inset-x-0 top-8 z-0 h-[650px] bg-cover bg-center bg-no-repeat" style={{ backgroundImage: `url("${selectedBackdrop}")` }}>
+        <div 
+            className="absolute inset-x-0 top-8 z-0 h-[650px] bg-cover bg-center bg-no-repeat" 
+            style={{ backgroundImage: `url("${selectedBackdrop.url}")` }} // <--- MUDOU AQUI (.url)
+          >
           <div className="absolute inset-0 bg-gradient-to-t from-transparent from-30% to-[#1A1A1A]" />
           <div className="absolute inset-0 bg-gradient-to-r from-transparent from-70% to-[#1A1A1A]" />
           <div className="absolute inset-0 bg-gradient-to-b from-transparent from-30% to-[#1A1A1A]" />
           <div className="absolute inset-0 bg-gradient-to-l from-transparent from-70% to-[#1A1A1A]" />
+        
+          <div className="absolute bottom-4 right-6 text-white/30 text-xs font-light tracking-wider select-none">
+            {selectedBackdrop.title} ({selectedBackdrop.year})
+          </div>
         </div>
 
         {/* Header */}
@@ -175,7 +258,7 @@ const RecommendationsPage: React.FC = () => {
 
         {/* Conteúdo Principal */}
         <main className="flex-grow z-10">
-          <div className="container mx-auto max-w-4xl px-4 py-8 sm:py-10 mt-2">
+          <div className="container mx-auto max-w-4xl px-4 py-8 sm:pt-6 sm:pb-12">
             <div className="text-center">
               <h1 className="text-2xl sm:text-5xl drop-shadow-sm font-semibold tracking-tight">
                 Suas recomendações
@@ -189,39 +272,45 @@ const RecommendationsPage: React.FC = () => {
             <div className="mt-8 grid grid-cols-2 gap-4 md:grid-cols-4 md:gap-6">
               {movies.map((movie) => (
                 <MovieCard
-                  key={movie.id}
-                  movie={movie}
-                  isLiked={likedMovieIds.includes(movie.id)}
-                  onLikeToggle={handleLikeToggle}
+                    key={movie.id}
+                    movie={movie}
+
+                    // --- NOVAS PROPS SENDO PASSADAS ---
+                    onExplain={handleAskAI}
+                    // Só manda o texto se o ID bater com o card atual
+                    explanationText={explanationData?.id === movie.id ? explanationData.text : null}
+                    // Só diz que está carregando se o ID bater
+                    isLoading={loadingId === movie.id}
                 />
-              ))}
+            ))}
             </div>
 
-            {/* Botão de Ação */}
+            {/* Botão de Ínicio */}
             <div className="mt-12 flex justify-center">
-              <button className="rounded-lg bg-primary px-8 py-3 text-base font-medium text-white shadow-sm  transition-all hover:bg-primary/90 hover:shadow-primary/10">
-                Novas recomendações
+              <button onClick={() => navigate('/')} className="rounded-lg bg-primary px-8 py-3 text-base font-medium text-white shadow-sm  transition-all hover:bg-primary/90 hover:shadow-primary/10">
+                Escolher outros filmes
               </button>
               
             </div>
-            {/* 2. NOVO BOTÃO (Estilo texto sublinhado) */}
-            <div className="mt-5 flex justify-center">
-              <button 
-                onClick={() => navigate('/')} // 3. AÇÃO DE NAVEGAÇÃO
-                className="text-neutral-400 text-base underline transition-colors hover:text-white"
-              >
-                Mudar meus filmes
-              </button>
-            </div>
+            
           </div>
         </main>
 
         {/* Footer */}
-        <footer className="z-10 mt-auto w-full">
+        <footer className="z-10 mt-6 w-full">
           <div className="container mx-auto px-4 py-1 text-center text-sm text-neutral-400">
           <p>© 2025 Grafiteiros. Todos os direitos reservados.</p>
           </div>
         </footer>
+
+        {/* -Modal de Explicação */}
+        <ExplanationModal 
+          isOpen={!!explanationData} // Abre se tiver dados
+          onClose={() => setExplanationData(null)} // Fecha limpando os dados
+          title={explanationData?.movie.title || ""}
+          content={explanationData?.text || ""}
+          movieImage={explanationData?.movie.imageUrl || ""}
+        />
       </div>
     </div>
   );
