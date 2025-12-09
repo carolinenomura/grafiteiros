@@ -3,6 +3,33 @@ const GenderNode = require('./weight_nodes/GenderNode');
 const RatingNode = require('./weight_nodes/RatingNode');
 const YearNode = require('./weight_nodes/YearNode');
 
+// --- FUNÇÃO AUXILIAR (Fora da Classe) ---
+// Calcula o quanto duas listas de texto se parecem (0.0 até 1.0)
+function calculateJaccardIndex(strA, strB) {
+    // Se algum dos dois for vazio ou nulo, não tem similaridade
+    if (!strA || !strB) return 0;
+    
+    // 1. Limpa os dados: " Ação, Drama " vira ['ação', 'drama']
+    const cleanList = (str) => str.toLowerCase().split(',').map(s => s.trim()).filter(s => s.length > 0);
+    
+    const listA = cleanList(strA);
+    const listB = cleanList(strB);
+
+    if (listA.length === 0 || listB.length === 0) return 0;
+
+    const setA = new Set(listA);
+    const setB = new Set(listB);
+
+    // 2. Interseção: Itens que existem nos DOIS
+    const intersection = new Set([...setA].filter(x => setB.has(x)));
+    
+    // 3. União: Total de itens únicos juntando os dois
+    const union = new Set([...setA, ...setB]);
+
+    // 4. Cálculo: (O que tem em comum) / (Total de coisas)
+    return intersection.size / union.size;
+}
+
 class MotherGraph extends Graph {
     constructor(movies = []) {
         super();
@@ -186,25 +213,27 @@ class MotherGraph extends Graph {
 
         const movieId = movie.id;
 
+        // --- CORREÇÃO AQUI ---
+        // Você precisa mapear os novos campos do banco para a memória do Grafo
         this.movies.set(movieId, {
             id: movieId,
             title: movie.title || '',
             gender: movie.gender || '',
             director: movie.director || '',
             year: movie.year || 0,
-            rating: movie.rating || 0
+            rating: movie.rating || 0,
+            // ADICIONE ESTAS LINHAS:
+            cast: movie.cast || '', 
+            tags: movie.tags || '',
+            poster_path: movie.poster_path || ''
         });
 
         this.addNode(movieId);
 
-        console.log(movie)
-
+        // ... resto da função continua igual ...
         this.addToDirectorGraph(movieId, movie);
-
         this.addToGenderGraph(movieId, movie);
-
         this.addToRatingGraph(movieId, movie);
-
         this.addToYearGraph(movieId, movie);
     }
 
@@ -253,109 +282,154 @@ class MotherGraph extends Graph {
         console.log(`Grafo principal populado com ${similarityGraph.getAllNodes().length} nós`);
     }
 
-    generateSimilarityGraph(min = 0.3) {
+    generateSimilarityGraph(min = 0.1) {
         const g = new Graph();
         const movies = [...this.movies.values()];
 
+        // Adiciona todos os nós
         movies.forEach(m => g.addNode(m.id));
 
+        // Compara todo mundo com todo mundo (O(n^2))
         movies.forEach((a, i) => {
             movies.slice(i + 1).forEach(b => {
                 let sim = 0;
-                if (a.director === b.director) sim += 0.2;
-                if (Math.abs(a.year - b.year) <= 5) sim += 0.3;
-                if (Math.abs(a.rating - b.rating) <= 1) sim += 0.1;
 
-                if (sim >= min) g.addEdge(a.id, b.id, sim);
+                // 1. DIRETOR (Peso: 0.3)
+                // Se for o mesmo diretor, já garante uma boa base
+                if (a.director && b.director && a.director === b.director) {
+                    sim += 0.3;
+                }
+
+                // 2. GÊNEROS (Peso: 0.2)
+                // Usa Jaccard para ver sobreposição de temas
+                // "gender" é como está no seu banco, embora o correto em inglês seja "genre"
+                if (a.gender && b.gender) {
+                    sim += calculateJaccardIndex(a.gender, b.gender) * 0.2;
+                }
+
+                // 3. ELENCO / CAST (Peso: 0.2) - NOVO!
+                // Se tiver atores em comum
+                if (a.cast && b.cast) {
+                    sim += calculateJaccardIndex(a.cast, b.cast) * 0.2;
+                }
+
+                // 4. TAGS / KEYWORDS (Peso: 0.4) - NOVO E IMPORTANTE!
+                // É o peso mais alto porque define o assunto do filme
+                if (a.tags && b.tags) {
+                     sim += calculateJaccardIndex(a.tags, b.tags) * 0.4;
+                }
+
+                // 5. AJUSTES FINOS (Ano e Nota)
+                // Diferença de ano (máximo 5 anos)
+                if (Math.abs(a.year - b.year) <= 5) sim += 0.05;
+                
+                // Diferença de nota (máximo 1 ponto)
+                if (Math.abs(a.rating - b.rating) <= 1.0) sim += 0.05;
+
+                // Cria a conexão se atingir o mínimo
+                if (sim >= min) {
+                    g.addEdge(a.id, b.id, sim);
+                }
             });
         });
         return g;
     }
 
-    getCombinedRecommendations(movieIds, minSimilarity = 0.2) {
-        // 1. Gerar grafo de similaridade
-        const similarityGraph = this.generateSimilarityGraph(minSimilarity);
+    getCombinedRecommendations(movieIds) {
+        // 1. Gera o grafo atualizado com as novas regras
+        const similarityGraph = this.generateSimilarityGraph(0.1);
+        
+        const candidates = new Map(); // ID -> Pontuação
 
-        // 2. Filtrar candidatos: conectados a pelo menos 2 filmes do cluster
-        const candidates = new Map(); // id -> {score, connections}
+        // 2. Soma os pesos dos vizinhos
+        movieIds.forEach(sourceId => {
+            const neighbors = similarityGraph.getNeighbors(sourceId);
+            
+            neighbors.forEach(([candidateId, weight]) => {
+                // Ignora filmes que o usuário já escolheu
+                if (movieIds.includes(candidateId)) return;
 
-        similarityGraph.getAllNodes().forEach(candidateId => {
-            // Pula se for um dos filmes escolhidos
-            if (movieIds.includes(candidateId)) return;
-
-            // Calcula conexões com o cluster
-            let totalScore = 0;
-            let connectionCount = 0;
-
-            movieIds.forEach(chosenId => {
-                const weight = similarityGraph.getWeight(chosenId, candidateId);
-                if (weight && weight > minSimilarity) {
-                    totalScore += weight;
-                    connectionCount++;
-                }
+                const currentScore = candidates.get(candidateId) || 0;
+                candidates.set(candidateId, currentScore + weight);
             });
+        });
 
-            // Só considera se conectado a pelo menos 2 filmes
-            if (connectionCount >= 2) {
-                candidates.set(candidateId, {
-                    score: totalScore,
-                    connections: connectionCount,
-                    avgScore: totalScore / connectionCount
+        // 3. Ordena e retorna
+        const sortedCandidates = Array.from(candidates.entries())
+            .map(([id, score]) => ({ id, score }))
+            .sort((a, b) => b.score - a.score);
+
+        // Retorna apenas os IDs
+        return sortedCandidates.slice(0, 4).map(c => c.id);
+    }
+
+    getDetailedExplanation(sourceIds, targetId) {
+        // Pega o objeto do filme alvo
+        const targetMovie = this.movies.get(targetId);
+        if (!targetMovie) return { totalScore: 0, matches: [] }; // Retorna objeto vazio para não quebrar
+
+        let report = {
+            totalScore: 0,
+            matches: []
+        };
+
+        // Compara o filme alvo contra CADA um dos filmes que o usuário escolheu
+        sourceIds.forEach(sourceId => {
+            const sourceMovie = this.movies.get(sourceId);
+            if (!sourceMovie) return;
+
+            let interactionScore = 0;
+            let reasons = [];
+
+            // 1. Análise de Diretor (Peso 0.3)
+            if (sourceMovie.director === targetMovie.director) {
+                interactionScore += 0.3;
+                reasons.push(`Mesmo nó de Diretor (${sourceMovie.director}) [+0.3]`);
+            }
+
+            // 2. Análise de Tags via Jaccard (Peso 0.4)
+            if (sourceMovie.tags && targetMovie.tags) {
+                const jaccardTags = calculateJaccardIndex(sourceMovie.tags, targetMovie.tags);
+                const scoreTags = jaccardTags * 0.4;
+                if (scoreTags > 0) {
+                    interactionScore += scoreTags;
+                    reasons.push(`Índice Jaccard de Tags: ${jaccardTags.toFixed(2)} (Peso 0.4) [+${scoreTags.toFixed(2)}]`);
+                }
+            }
+
+            // 3. Análise de Elenco via Jaccard (Peso 0.2)
+            if (sourceMovie.cast && targetMovie.cast) {
+                const jaccardCast = calculateJaccardIndex(sourceMovie.cast, targetMovie.cast);
+                const scoreCast = jaccardCast * 0.2;
+                if (scoreCast > 0) {
+                    interactionScore += scoreCast;
+                    reasons.push(`Interseção de Elenco: ${jaccardCast.toFixed(2)} (Peso 0.2) [+${scoreCast.toFixed(2)}]`);
+                }
+            }
+
+            // 4. Gênero (Peso 0.2)
+            if (sourceMovie.gender && targetMovie.gender) {
+                const jaccardGenre = calculateJaccardIndex(sourceMovie.gender, targetMovie.gender);
+                const scoreGenre = jaccardGenre * 0.2;
+                if (scoreGenre > 0) {
+                    interactionScore += scoreGenre;
+                    reasons.push(`Similaridade de Gênero: ${jaccardGenre.toFixed(2)} [+${scoreGenre.toFixed(2)}]`);
+                }
+            }
+
+            // Só adiciona ao relatório se houve alguma conexão
+            if (interactionScore > 0) {
+                report.totalScore += interactionScore;
+                report.matches.push({
+                    connectedWith: sourceMovie.title,
+                    scoreContributed: interactionScore.toFixed(2),
+                    details: reasons.join(", ")
                 });
             }
         });
 
-        // 3. Ordenar candidatos por diferentes critérios
-        const candidatesArray = Array.from(candidates.entries())
-            .map(([id, data]) => ({ id, ...data }));
-
-        if (candidatesArray.length === 0) {
-            return []; // Sem recomendações suficientes
-        }
-
-        // 4. Selecionar 4 recomendações diversas
-        const recommendations = [];
-
-        // Critério 1: Maior pontuação total (filme que mais agrada o cluster)
-        const byTotalScore = [...candidatesArray].sort((a, b) => b.score - a.score);
-        if (byTotalScore.length > 0) {
-            recommendations.push(byTotalScore[0].id);
-        }
-
-        // Critério 2: Melhor média (filme mais consistente)
-        const byAvgScore = [...candidatesArray]
-            .filter(c => !recommendations.includes(c.id))
-            .sort((a, b) => b.avgScore - a.avgScore);
-        if (byAvgScore.length > 0) {
-            recommendations.push(byAvgScore[0].id);
-        }
-
-        // Critério 3: Mais conexões (filme que abrange mais gostos)
-        const byConnections = [...candidatesArray]
-            .filter(c => !recommendations.includes(c.id))
-            .sort((a, b) => b.connections - a.connections);
-        if (byConnections.length > 0) {
-            recommendations.push(byConnections[0].id);
-        }
-
-        // Critério 4: "Surpresa" - bem conectado mas não tão óbvio
-        const surpriseCandidates = [...candidatesArray]
-            .filter(c => !recommendations.includes(c.id))
-            .sort((a, b) => {
-                // Prefere filmes com boa média mas não máximo total
-                const balanceA = a.avgScore * 0.7 + (a.score / 10) * 0.3;
-                const balanceB = b.avgScore * 0.7 + (b.score / 10) * 0.3;
-                return balanceB - balanceA;
-            });
-        if (surpriseCandidates.length > 0) {
-            recommendations.push(surpriseCandidates[0].id);
-        }
-
-        // Garantir que temos 4 recomendações únicas
-        return [...new Set(recommendations)].slice(0, 4);
+        return report;
     }
-
-
 
 }
 
