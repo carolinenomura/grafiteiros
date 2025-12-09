@@ -2,7 +2,9 @@ const express = require("express");
 const router = express.Router();
 const Movie = require("./Movie");
 const Sequelize = require("sequelize");
+const { GoogleGenerativeAI } = require("@google/generative-ai");
 const Op = Sequelize.Op;
+
 
 const MotherGraph = require("../public/js/MotherGraph");
 
@@ -220,12 +222,95 @@ router.post("/recommendations", async (req, res) => {
                 id: { [Op.in]: recommendedIds }
             }
         });
+        
+        // Fallback: Se o grafo achou menos de 4 filmes, completa com filmes aleatórios/populares
+        /*
+        if (recommendedIds.length < 4) {
+            const missingCount = 4 - recommendedIds.length;
+            const excludeIds = [...movieIds, ...recommendedIds];
+
+            const fillerMovies = await Movie.findAll({
+                where: {
+                    id: { [Op.notIn]: excludeIds }
+                },
+                limit: missingCount,
+                order: [['rating', 'DESC']] // Pega os melhores avaliados para completar
+            });
+
+            const fillerIds = fillerMovies.map(m => m.id);
+            recommendedIds = [...recommendedIds, ...fillerIds];
+        }
+        */
 
         res.json(recommendedMovies);
 
     } catch (error) {
         console.error("Erro ao gerar recomendações:", error);
         res.status(500).json({ error: "Erro interno no servidor de recomendações" });
+    }
+});
+
+// Rota de Explicação técnica das Recomendações usando IA (Gemini)
+router.post("/recommendations/explain", async (req, res) => {
+    try {
+        // --- ADICIONE ESTA LINHA ---
+        console.log("Minha Chave Gemini:", process.env.GEMINI_API_KEY);
+
+        const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
+
+        const { userMovies, recommendedMovie } = req.body;
+
+        if (!userMovies || !recommendedMovie) {
+            return res.status(400).json({ error: "Dados incompletos." });
+        }
+
+        // 1. Instancia o Grafo novamente para rodar a auditoria
+        const allMovies = await Movie.findAll();
+        const plainMovies = allMovies.map(m => m.toJSON());
+        const graph = new MotherGraph(plainMovies);
+
+        // 2. Extrai os IDs
+        // O frontend pode mandar objetos ou só IDs, vamos garantir que temos os IDs
+        const sourceIds = userMovies.map(m => m.id);
+        const targetId = recommendedMovie.id;
+
+        // 3. Gera o relatório técnico matemático
+        const technicalReport = graph.getDetailedExplanation(sourceIds, targetId);
+
+        const prompt = `
+            Você é um professor de Algoritmos explicando o resultado de uma recomendação baseada em Grafos.
+            
+            O Filme Recomendado é: "${recommendedMovie.title}".
+            Score Total: ${technicalReport.totalScore.toFixed(3)}.
+
+            Abaixo estão os dados brutos das arestas que conectaram a esse filme:
+            ${technicalReport.matches.map(m => `- Conexão com "${m.connectedWith}" (Peso: ${m.scoreContributed}): ${m.details}`).join("\n")}
+
+            SUA TAREFA:
+            Escreva uma explicação direta que misture a "Vibe" (contexto humano) com a "Lógica" (dados técnicos).
+            
+            Regras de Escrita:
+            1. PROIBIDO USAR SAUDAÇÕES (Não diga "Olá", "Oi", etc). Comece direto com o nome do filme ou a justificativa.
+            2. Ao citar o Score Total (${technicalReport.totalScore.toFixed(3)}), contextualize a força dele. 
+               - Considere que: > 0.5 é uma Conexão Forte; entre 0.2 e 0.5 é Moderada; < 0.2 é uma Conexão Sutil/Específica.
+               - Exemplo: "...gerando um Score de 0.8, o que indica uma conexão fortíssima..."
+            3. Para as 2 conexões mais fortes, faça a "Tradução Técnica":
+               - Primeiro o motivo real (ex: "A conexão com 'Filme X' se deve ao tema...").
+               - Depois, cite a prova matemática: "(validado pelo Índice Jaccard de 0.04 e peso 0.14)".
+            4. Use negrito (**texto**) nos nomes dos algoritmos, filmes e valores.
+            5. Máximo de 600 caracteres.
+        `;
+
+        const result = await model.generateContent(prompt);
+        const response = await result.response;
+        const text = response.text();
+
+        res.json({ text: text });
+
+    } catch (error) {
+        console.error("Erro ao gerar explicação:", error);
+        res.status(500).json({ error: "Erro ao processar dados do grafo." });
     }
 });
 

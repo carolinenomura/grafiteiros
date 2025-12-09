@@ -17,6 +17,18 @@ const Movie = connection.define('movies',{
     },rating: {
         type: Sequelize.FLOAT,
         allowNull: false
+    },
+    cast: {
+        type: Sequelize.TEXT, // Armazena string longa: "Tom Cruise, Miles Teller..."
+        allowNull: true
+    },
+    tags: {
+        type: Sequelize.TEXT, // Armazena: "avião, militar, rivalidade..."
+        allowNull: true
+    },
+    poster_path: {
+        type: Sequelize.STRING, // Armazena: "/8xV47NDrjdZDpkVcCFqkdHa3T0C.jpg"
+        allowNull: true
     }
 });
 

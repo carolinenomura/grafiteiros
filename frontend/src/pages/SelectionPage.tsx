@@ -123,13 +123,17 @@ const SelectionPage: React.FC = () => {
       return;
     }
 
+    const tmdbBaseUrl = "https://image.tmdb.org/t/p/w500";
+
     // 2. Formata o objeto para o visual do card
     const newMovie: SelectedMovie = {
       id: movie.id,
       title: movie.title,
       year: movie.year.toString(),
       // Como o backend ainda não retorna URL de imagem, usamos um placeholder
-      imageUrl: "https://via.placeholder.com/300x450?text=Sem+Imagem" 
+      imageUrl: movie.poster_path 
+        ? `${tmdbBaseUrl}${movie.poster_path}` 
+        : "https://via.placeholder.com/300x450?text=Sem+Imagem"  
     };
 
     setSelectedMovies((prev) => [...prev, newMovie]);
@@ -172,7 +176,7 @@ const SelectionPage: React.FC = () => {
         </header>
 
         {/* Conteúdo */}
-        <main className="flex-1 z-10  py-10 mt-10 w-full max-w-[900px] text-center">
+        <main className="flex-1 z-10  py-10  w-full max-w-[900px] text-center">
           <h1 className="text-2xl sm:text-5xl drop-shadow-sm font-semibold tracking-tight">
             Encontre seu próximo filme favorito
           </h1>
@@ -208,7 +212,7 @@ const SelectionPage: React.FC = () => {
         </main>
 
         {/* Footer */}
-        <footer className="mt-auto w-full">
+        <footer className="mt-10 w-full">
           <div className="container mx-auto px-4 py-6 text-center text-sm text-neutral-400">
             <p>© 2025 Grafiteiros. Todos os direitos reservados.</p>
           </div>

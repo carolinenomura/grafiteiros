@@ -22,6 +22,19 @@ export default function Modal({ isOpen, onClose, onSelectMovie }: ModalProps) {
 
     if (!isOpen) return null;
 
+    const fetchMovies = async (searchTerm: string = "") => {
+        setIsLoading(true);
+        try {
+            // Se searchTerm for vazio, o backend agora entende e devolve os recentes
+            const data = await searchMoviesApi(searchTerm);
+            setResults(data);
+        } catch (error) {
+            console.error(error);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
     const handleSearch = async () => {
         if(!query) return;
         setIsLoading(true);
